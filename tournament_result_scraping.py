@@ -59,31 +59,43 @@ def get_espn_scoreboard(date_str: str) -> pd.DataFrame:
 
     recs = []
     for evt in events:
-        tour = evt.get("name","")
+        tour = evt.get("name", "")
         comps = (evt.get("competitions") or [])[:1]
         if not comps:
             continue
+
         for comp in comps[0].get("competitors", []):
-            p   = comp.get("competitor", {})
+            # — pull out the athlete info if present —
+            base = comp.get("athlete") or comp.get("team") or comp
+
+            player_id   = base.get("id")
+            # sometimes they call it 'displayName', other times 'fullName'
+            player_name = base.get("displayName") or base.get("fullName")
+
             rec = {
-                "tournament":  tour,
-                "playerId":    p.get("id"),
-                "playerName":  p.get("displayName"),
-                "position":    comp.get("order")
+                "tournament": tour,
+                "playerId":   player_id,
+                "playerName": player_name,
+                "position":   comp.get("order")
             }
-            # R1–R4, safe int
+
+            # R1–R4, safe integer conversion
             for i, line in enumerate(comp.get("linescores", []), start=1):
-                dv = line.get("displayValue")
                 try:
-                    rec[f"R{i}"] = int(dv)
-                except Exception:
+                    rec[f"R{i}"] = int(line.get("displayValue"))
+                except (TypeError, ValueError):
                     rec[f"R{i}"] = None
+
             # total & toPar
-            summary     = comp.get("summary",{}) or {}
+            summary = comp.get("summary", {}) or {}
             rec["total"] = summary.get("score")
             rec["toPar"] = summary.get("toPar")
+
             recs.append(rec)
+
     return pd.DataFrame(recs)
+
+
 
 # ─── STEP 3: LOOP YEARS → EVENTS → CONCAT & SAVE ─────────────────────────────
 def build_full_season(start_year: int=2015, end_year: int=2025) -> pd.DataFrame:
